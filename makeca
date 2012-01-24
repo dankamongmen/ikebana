@@ -1,0 +1,31 @@
+#!/bin/sh
+
+set -e || exit 1
+
+usage () { echo "usage: $0 caname" ; }
+
+for i in wipe openssl ; do
+	which $i > /dev/null || { echo "Couldn't find $i, exiting" >&2 ; exit 1 ; }
+done
+
+[ $# -eq 1 ] || { usage >&2 ; exit 1 ; }
+
+CANAME="$1"
+
+CADIR="./openvpn"
+
+[ ! -e "$CADIR" ] || { echo "$CADIR already exists. Run make clean." ; exit 1 ; }
+
+mkdir -p "$CADIR/private" "$CADIR/newcerts"
+touch "$CADIR/rand" "$CADIR/index.txt"
+echo "01" > "$CADIR/serial"
+openssl req -nodes -new -x509 -keyout "$CADIR/private/cakey.pem" \
+	-out "$CADIR/cacert.pem" -utf8 -days 1461 -config openvpnssl.conf
+openssl dhparam -out "$CADIR/dh1024.pem" 1024
+
+./makecert "$CANAME" "$CANAME"
+
+tar czvf "$CANAME-ca.tar.gz" "$CANAME.tar.gz" "$CADIR/dh1024.pem" \
+	"$CADIR/index.txt" "$CADIR/index.txt.attr" \
+	"$CADIR/rand" "$CADIR/serial" "$CADIR/private/cakey.pem"
+wipe -f "$CANAME".tar.gz

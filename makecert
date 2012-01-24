@@ -1,0 +1,24 @@
+#!/bin/sh
+
+set -e || exit 1
+
+for i in wipe openssl ; do
+	which $i > /dev/null || { echo "Couldn't find $i, exiting" >&2 ; exit 1 ; }
+done
+
+usage () { echo "usage: $0 caname certname" ; }
+
+[ $# -eq 2 ] || { usage >&2 ; exit 1 ; }
+
+CANAME="$1"
+CERTNAME="$2"
+
+CADIR="./openvpn"
+
+openssl req -nodes -new -keyout "$CERTNAME".key -out "$CERTNAME".csr \
+	-utf8 -config openvpnssl.conf
+yes | openssl ca -out "$CERTNAME".crt -in "$CERTNAME".csr -days 1461 \
+	-utf8 -config openvpnssl.conf
+rm "$CERTNAME".csr
+tar czvf "$CERTNAME".tar.gz "$CERTNAME".crt "$CERTNAME".key "$CADIR"/cacert.pem
+wipe -f "$CERTNAME".key

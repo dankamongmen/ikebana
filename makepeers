@@ -1,0 +1,69 @@
+#!/bin/sh
+
+set -e || exit 1
+
+for i in wipe openssl ; do
+	which $i > /dev/null || { echo "Couldn't find $i, exiting" >&2 ; exit 1 ; }
+done
+
+usage () { echo "usage: $0 servername serverTUNip clientname clientTUNip serverIP" ; }
+
+usageerr () { usage >&2 ; exit 1 ; }
+
+[ $# -eq 5 ] || usageerr
+
+SNAME="$1"
+SIP="$2"
+CNAME="$3"
+CIP="$4"
+RIP="$5"
+CADIR="./openvpn"
+
+mkdir -p "$CADIR/private" "$CADIR/newcerts"
+touch "$CADIR/rand" "$CADIR/index.txt"
+echo "01" > "$CADIR/serial"
+openssl req -nodes -new -x509 -keyout "$CADIR"/private/cakey.pem \
+	-out "$CADIR"/cacert.pem -utf8 -days 1461 -config openvpnssl.conf
+openssl dhparam -out "$CADIR"/dh1024.pem 1024
+
+./makecert "$CANAME" "$CANAME"
+
+cat > $SNAME.conf <<-ENDCONFIG
+	daemon
+	mlock
+	tls-server
+	mode p2p
+	dev tun
+	proto udp
+	keepalive 10 60
+	ifconfig $SIP $CIP
+	key	$SNAME/$SNAME.key
+	cert	$SNAME/$SNAME.crt
+	dh	$SNAME/dh1024.pem
+	ca	$SNAME/cacert.pem
+ENDCONFIG
+
+tar czvf $SNAME-openvpn-server.tar.gz \
+	$SNAME-ca.tar.gz $CADIR/dh1024.pem $SNAME.conf
+
+wipe -f "$SNAME-ca.tar.gz"
+
+./makecert "$SNAME" "$CNAME"
+
+cat > $SNAME-$CNAME.conf <<-ENDCONFIG
+	daemon
+	mlock
+	mode p2p
+	tls-client
+	dev tun
+	keepalive 10 60
+	remote $RIP
+	tls-remote $SNAME
+	ifconfig $CIP $SIP
+	key	$SNAME/$CNAME.key
+	cert	$SNAME/$CNAME.crt
+	ca	$SNAME/cacert.pem
+ENDCONFIG
+
+tar czvf $SNAME-$CNAME-openvpn-client.tar.gz $CNAME.tar.gz $SNAME-$CNAME.conf
+wipe -f "$CNAME.tar.gz"

@@ -1,0 +1,32 @@
+#!/bin/sh
+
+set -e || exit 1
+
+which wipe > /dev/null || { echo "Couldn't find wipe, exiting" >&2 ; exit 1 ; }
+
+usage () { echo "usage: $0 servername serveraddr clientname" ; }
+
+[ $# -eq 3 ] || { usage >&2 ; exit 1 ; }
+
+SNAME="$1"
+SADDR="$2"
+CNAME="$3"
+
+./makecert "$SNAME" "$CNAME"
+
+cat > "$SNAME".conf <<-ENDCONFIG
+	daemon
+	mlock
+	client
+	dev tun
+	comp-lzo yes
+	remote $SADDR
+	keepalive 10 60
+	tls-remote $SNAME
+	key	$SNAME/$CNAME.key
+	cert	$SNAME/$CNAME.crt
+	ca	$SNAME/cacert.pem
+ENDCONFIG
+
+tar czvf "$CNAME"-openvpn-client.tar.gz "$CNAME".tar.gz "$SNAME".conf
+wipe -f "$CNAME".tar.gz

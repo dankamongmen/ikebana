@@ -1,0 +1,36 @@
+#!/bin/sh
+
+set -e || exit 1
+
+which wipe > /dev/null || { echo "Couldn't find wipe, exiting" >&2 ; exit 1 ; }
+
+CADIR=./openvpn
+
+usage () {
+	echo "usage: $0 servername"
+}
+
+[ $# -eq 1 ] || { usage >&2 ; exit 1 ; }
+
+SNAME="$1"
+
+./makeca "$SNAME"
+
+cat > "$SNAME.conf" <<-ENDCONFIG
+	daemon
+	mlock
+	dev tun
+	proto udp
+	comp-lzo yes
+	keepalive 10 60
+	server VPNNETWORK VPNNETMASK
+	key	$SNAME/$SNAME.key
+	cert	$SNAME/$SNAME.crt
+	dh	$SNAME/dh1024.pem
+	ca	$SNAME/cacert.pem
+ENDCONFIG
+
+tar czvf "$SNAME-openvpn-server.tar.gz" \
+	"$SNAME-ca.tar.gz" "$CADIR/dh1024.pem" "$SNAME.conf"
+
+wipe -f "$SNAME-ca.tar.gz"
