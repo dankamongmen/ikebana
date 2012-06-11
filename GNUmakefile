@@ -1,7 +1,5 @@
-.PHONY: clean mrproper
+.PHONY: clean
 
+#@svn status | grep ^? | cut -b8- | grep -v .tar.gz$$ | xargs rm -rfv
 clean:
-	@svn status | grep ^? | cut -b8- | grep -v .tar.gz$$ | xargs rm -rfv
-
-mrproper: clean
-	@svn status | grep ^? | cut -b8- | grep .tar.gz$$ | xargs rm -rfv
+	git status -s | grep ^?? | cut -b4- | xargs rm -rfv
